@@ -109,6 +109,9 @@
     <div class="col-l">
       <button id="runBtn">開始翻譯</button>
       <div id="recStatus" class="hint" style="min-height:18px"></div>
+      <label class="hint" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="meterOn"> 顯示音量條＋卡住偵測（若開啟後辨識不出字，請關掉）
+      </label>
       <div title="麥克風音量" style="height:8px;background:#E6E1D6;border-radius:4px;overflow:hidden"><div id="micBar" style="height:8px;width:0;background:#1F7A5A;transition:width .1s"></div></div>
       <div id="appMsg" class="msg"></div>
 
@@ -414,7 +417,7 @@ let micStream = null, micCtx = null, micTimer = null;
 async function startMicMeter() {
   if (micStream) return;
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     micCtx = new (window.AudioContext || window.webkitAudioContext)();
     const src = micCtx.createMediaStreamSource(micStream);
     const an = micCtx.createAnalyser();
@@ -462,7 +465,7 @@ async function setRunning(on) {
     state.running = true;
     recInfo.denied = 0;
     if (!startRec()) { state.running = false; }
-    else startMicMeter();
+    else if ($('meterOn').checked) startMicMeter();
     try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
   } else {
     state.running = false;
@@ -708,6 +711,10 @@ $('logoutLink').addEventListener('click', (e) => {
   $('login').style.display = 'block';
 });
 $('runBtn').addEventListener('click', () => setRunning(!state.running));
+$('meterOn').addEventListener('change', (e) => {
+  if (!state.running) return;
+  if (e.target.checked) startMicMeter(); else { stopMicMeter(); recInfo.loudSince = 0; }
+});
 document.querySelectorAll('[data-dir]').forEach((b) => b.addEventListener('click', () => {
   state.dir = b.dataset.dir;
   if (state.running) startRec();   // 換語言要重新啟動辨識
