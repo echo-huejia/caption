@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECHO 即時字幕｜操作台</title>
+<!--
+  ============================================================
+  ECHO 即時字幕｜操作台（第一版）
+  洄佳整合行銷 ECHO Integrated Marketing
+  ------------------------------------------------------------
+  ・請用「電腦版 Chrome」開啟
+  ・語音辨識用的是 Windows／Mac 的「預設麥克風」
+  ・這個檔案裡沒有任何金鑰，金鑰都放在 GAS 後端
+  ============================================================
+-->
+<style>
+  :root{
+    --navy:#0E1A24; --navy2:#1C2830; --amber:#F2A541; --paper:#F5F3EE; --line:#DDD8CC;
+    --muted:#5E6C76; --ink:#1C2830; --red:#C8553D; --green:#1F7A5A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",system-ui,sans-serif}
+  button{font-family:inherit;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .top{background:var(--navy);color:#F4F1EA;padding:14px 28px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center}
+  .top h1{margin:0;font-size:20px}
+  .pill{font-size:13px;font-weight:700;padding:4px 10px;border-radius:12px;margin-left:10px}
+  .pill.on{background:var(--amber);color:var(--navy)}
+  .pill.off{background:#3A4A56;color:#F4F1EA}
+  .evinfo{font-size:14px;color:#9FB0BD}
+  .wrap{max-width:1280px;margin:0 auto;padding:20px 28px;display:flex;flex-wrap:wrap;gap:20px}
+  .col-l{flex:1 1 320px;display:flex;flex-direction:column;gap:14px}
+  .col-r{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:14px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h2{margin:0 0 10px;font-size:14px;color:#4A5862}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .seg{flex:1;min-height:54px;border-radius:10px;font-size:16px;font-weight:700;line-height:1.3;border:2px solid #C9C3B6;background:#fff;color:var(--ink);padding:6px}
+  .seg small{font-size:12px;font-weight:400;display:block}
+  .seg.on{background:var(--navy);color:#F4F1EA;border-color:var(--navy)}
+  .btn{height:44px;padding:0 14px;border-radius:8px;border:1px solid #C9C3B6;background:#fff;font-size:15px;color:var(--ink)}
+  .btn.sq{width:44px;padding:0}
+  .btn.on{background:var(--navy);color:#F4F1EA;border-color:var(--navy)}
+  #runBtn{height:72px;border-radius:12px;font-size:20px;font-weight:700;border:none;color:#fff;background:var(--green)}
+  #runBtn.stop{background:var(--red)}
+  .hint{font-size:13px;color:var(--muted);line-height:1.5}
+  .preview{background:var(--navy);color:#F4F1EA;border-radius:12px;padding:18px 22px;min-height:170px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px}
+  .preview .src{color:#9FB0BD;font-size:15px}
+  .preview .dst{font-size:24px;font-weight:700;line-height:1.35}
+  .preview .old{opacity:.55}
+  .preview .interim{color:#6F8494;font-size:15px}
+  .stats{display:flex;flex-wrap:wrap;gap:12px}
+  .stat{flex:1 1 150px}
+  .stat .v{font-size:20px;font-weight:700;margin-top:4px}
+  .msg{padding:10px 14px;border-radius:8px;font-size:14px;display:none}
+  .msg.error{display:block;background:#FCEBEB;color:#791F1F;border:1px solid #F09595}
+  .msg.info{display:block;background:#E6F1FB;color:#0C447C;border:1px solid #85B7EB}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td{border-top:1px solid #EEEAE1;padding:8px 6px;vertical-align:top}
+  td.t{width:70px;color:var(--muted);white-space:nowrap}
+  td.e{width:110px;color:var(--muted);font-size:12px;white-space:nowrap}
+  .s{color:var(--muted)}
+  input[type=text],input[type=password],input[type=url]{width:100%;height:44px;border:1px solid #C9C3B6;border-radius:8px;padding:0 12px;font-size:15px;font-family:inherit}
+  label.f{display:block;font-size:14px;font-weight:700;color:#4A5862;margin:12px 0 6px}
+  #login{max-width:520px;margin:40px auto;padding:0 20px}
+  .foot{text-align:center;font-size:12px;color:var(--muted);padding:16px}
+  .logbox{max-height:420px;overflow:auto}
+</style>
+</head>
+<body>
+
+<!-- ================= 登入畫面 ================= -->
+<div id="login">
+  <div class="card" style="padding:24px">
+    <h1 style="margin:0 0 4px;font-size:22px">ECHO 即時字幕｜操作台</h1>
+    <div class="hint">第一次使用請貼上 GAS 網址；之後只要輸入活動代碼和通行碼。</div>
+
+    <label class="f" for="cfgUrl">GAS 網頁應用程式網址</label>
+    <input id="cfgUrl" type="url" placeholder="https://script.google.com/macros/s/……/exec">
+
+    <label class="f" for="cfgEvent">活動代碼</label>
+    <input id="cfgEvent" type="text" placeholder="例如 TEST01" autocomplete="off">
+
+    <label class="f" for="cfgPass">通行碼</label>
+    <input id="cfgPass" type="password" placeholder="「活動」工作表 F 欄的數字" autocomplete="off">
+
+    <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px">
+      <input id="cfgRemember" type="checkbox"> 在這台電腦記住通行碼（公用電腦請勿勾選）
+    </label>
+
+    <div id="loginMsg" class="msg" style="margin-top:14px"></div>
+    <button id="loginBtn" class="btn on" style="width:100%;margin-top:16px;height:50px;font-size:17px">進入操作台</button>
+  </div>
+  <div class="foot">ECHO 即時字幕 by 洄佳整合行銷</div>
+</div>
+
+<!-- ================= 操作台 ================= -->
+<div id="app" style="display:none">
+  <div class="top">
+    <div style="display:flex;align-items:center">
+      <h1>ECHO 即時字幕｜操作台</h1>
+      <span id="statusPill" class="pill off">❚❚ 未開始</span>
+    </div>
+    <div class="evinfo"><span id="evInfo"></span>　<a href="#" id="logoutLink" style="color:#F2A541">換活動</a></div>
+  </div>
+
+  <div class="wrap">
+    <!-- 左：控制 -->
+    <div class="col-l">
+      <button id="runBtn">開始翻譯</button>
+      <div id="recStatus" class="hint" style="min-height:18px"></div>
+      <div title="麥克風音量" style="height:8px;background:#E6E1D6;border-radius:4px;overflow:hidden"><div id="micBar" style="height:8px;width:0;background:#1F7A5A;transition:width .1s"></div></div>
+      <div id="appMsg" class="msg"></div>
+
+      <div class="card">
+        <h2>翻譯方向</h2>
+        <div class="row">
+          <button class="seg on" data-dir="en2zh">英 → 中<small>講師演講</small></button>
+          <button class="seg" data-dir="zh2en">中 → 英<small>Q&amp;A、主持人</small></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>翻譯引擎</h2>
+        <div class="row">
+          <button class="seg on" data-engine="google">Google 翻譯<small>最快・最穩</small></button>
+          <button class="seg" data-engine="gemma">Gemma<small>較自然・偶爾忙碌</small></button>
+        </div>
+        <div class="hint" style="margin-top:8px">選 Gemma 時，若 2.5 秒還沒回來，會同時請 Google 翻譯，誰先回來用誰。</div>
+      </div>
+
+      <div class="card">
+        <h2>投影畫面</h2>
+        <div class="row">
+          <button class="btn" id="openScreenBtn">開啟投影視窗</button>
+          <button class="btn" id="openPipBtn">浮動字幕條</button>
+          <button class="btn" id="clearBtn">清除畫面</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <span class="hint">字體</span>
+          <button class="btn sq" data-size="S">小</button>
+          <button class="btn sq on" data-size="M">中</button>
+          <button class="btn sq" data-size="L">大</button>
+          <label class="hint" style="display:flex;gap:6px;align-items:center;margin-left:8px">
+            <input type="checkbox" id="showSrc" checked> 顯示原文
+          </label>
+        </div>
+        <div class="hint" style="margin-top:8px">投影視窗拖到投影機螢幕後，按視窗裡的「全螢幕」。浮動字幕條會一直浮在簡報上面。</div>
+      </div>
+
+      <div class="card">
+        <h2>手動測試（不用麥克風）</h2>
+        <div class="row">
+          <input type="text" id="manualText" placeholder="輸入一句話，按送出" style="flex:1">
+          <button class="btn on" id="manualBtn">送出</button>
+        </div>
+      </div>
+
+      <details class="card hint">
+        <summary style="cursor:pointer"><b>辨識紀錄（除錯用）</b></summary>
+        <pre id="recLog" style="white-space:pre-wrap;font-size:12px;margin:8px 0 0;max-height:200px;overflow:auto"></pre>
+      </details>
+
+      <div class="card hint">
+        <b>現場小提醒</b><br>
+        ・麥克風用的是電腦的「預設輸入裝置」，請在系統音效設定先選好。<br>
+        ・主持人講中文、休息、播影片時按「暫停」。<br>
+        ・Q&amp;A 台下用中文發問時切「中 → 英」。
+      </div>
+    </div>
+
+    <!-- 右：預覽與紀錄 -->
+    <div class="col-r">
+      <div class="preview" id="preview"><div class="interim">按「開始翻譯」後，字幕會出現在這裡</div></div>
+
+      <div class="stats">
+        <div class="card stat"><div class="hint">已翻譯句數</div><div class="v" id="stCount">0</div></div>
+        <div class="card stat"><div class="hint">平均等待時間（最近 20 句）</div><div class="v" id="stAvg">—</div></div>
+        <div class="card stat"><div class="hint">上一句使用</div><div class="v" id="stEngine" style="font-size:16px">—</div></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:6px">
+          <h2 style="margin:0">逐字稿（最新在上；完整紀錄在試算表）</h2>
+          <button class="btn" id="csvBtn">下載 CSV</button>
+        </div>
+        <div class="logbox"><table><tbody id="logBody"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">ECHO 即時字幕 by 洄佳整合行銷・AI 即時翻譯，僅供參考</div>
+</div>
+
+<script>
+/* ============================================================
+   設定
+   ============================================================ */
+const HEDGE_MS = 2500;             // Gemma 超過這個毫秒數還沒回來，就同時請 Google 翻譯，誰先回來用誰
+const REQUEST_TIMEOUT_MS = 15000;  // 一般請求逾時
+const SCREEN_LINES = 3;            // 投影畫面最多顯示幾句
+const MAX_INTERIM_CHARS = 220;     // 講者一直不停頓時，強制切句的字數
+const STORE_KEY = 'echoCaptionCfg';
+
+/* ============================================================
+   狀態
+   ============================================================ */
+const state = {
+  cfg: { url: '', eventId: '', pass: '' },
+  ev: null,               // 活動資料（從 GAS 取得）
+  running: false,
+  dir: 'en2zh',
+  engine: 'google',
+  size: 'M',
+  showSrc: true,
+  lines: [],              // {seq, src, dst, dir, engine, rt, time, err}
+  interim: '',
+  seq: 0,
+  clearedSeq: 0           // 清除畫面時記住的句號，之前的不再投影
+};
+let rec = null;           // 語音辨識物件
+let screenWin = null;     // 投影視窗
+let pipWin = null;        // 浮動字幕條視窗
+let wakeLock = null;      // 防止電腦休眠
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ============================================================
+   與 GAS 溝通
+   ============================================================ */
+async function post(payload, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || REQUEST_TIMEOUT_MS);
+  try {
+    // 用純文字送出，避免瀏覽器的跨網域預檢（GAS 不支援）
+    const res = await fetch(state.cfg.url, { method: 'POST', body: JSON.stringify(payload), signal: ctrl.signal });
+    const data = await res.json();
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* ============================================================
+   登入
+   ============================================================ */
+function loadCfg() {
+  try {
+    const c = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    $('cfgUrl').value = c.url || '';
+    $('cfgEvent').value = c.eventId || '';
+    $('cfgPass').value = c.pass || '';
+    $('cfgRemember').checked = !!c.pass;
+  } catch (_) {}
+}
+
+function saveCfg() {
+  try {
+    const c = { url: state.cfg.url, eventId: state.cfg.eventId };
+    if ($('cfgRemember').checked) c.pass = state.cfg.pass;
+    localStorage.setItem(STORE_KEY, JSON.stringify(c));
+  } catch (_) {}
+}
+
+function showMsg(el, text, type) {
+  el.textContent = text || '';
+  el.className = 'msg' + (text ? ' ' + (type || 'info') : '');
+}
+
+async function doLogin() {
+  const url = $('cfgUrl').value.trim();
+  const eventId = $('cfgEvent').value.trim().toUpperCase();
+  const pass = $('cfgPass').value.trim();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) {
+    return showMsg($('loginMsg'), 'GAS 網址格式不對，應該是 https://script.google.com/…/exec', 'error');
+  }
+  if (!eventId || !pass) return showMsg($('loginMsg'), '請輸入活動代碼和通行碼', 'error');
+
+  state.cfg = { url, eventId, pass };
+  $('loginBtn').disabled = true;
+  showMsg($('loginMsg'), '連線中…', 'info');
+  try {
+    const r = await post({ action: 'login', eventId, pass });
+    if (!r.ok) throw new Error(r.error);
+    state.ev = r.event;
+    saveCfg();
+    $('login').style.display = 'none';
+    $('app').style.display = 'block';
+    $('evInfo').textContent = (r.event.org || '') + '｜' + (r.event.name || '') + (r.event.speaker ? '・講者：' + r.event.speaker : '');
+    render();
+  } catch (err) {
+    const m = err.name === 'AbortError' ? '連線逾時，請確認網路和 GAS 網址' :
+              (err instanceof TypeError ? '連不到 GAS。請確認網址正確，且部署時「誰可以存取」選「所有人」' : err.message);
+    showMsg($('loginMsg'), m, 'error');
+  } finally {
+    $('loginBtn').disabled = false;
+  }
+}
+
+/* ============================================================
+   語音辨識（Chrome 內建）
+   ============================================================ */
+function startRec() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    showMsg($('appMsg'), '這個瀏覽器不支援語音辨識，請改用電腦版 Chrome。', 'error');
+    return false;
+  }
+  // 重新啟動前，把還沒定稿的半句送去翻譯，不要丟掉
+  if (rec && state.interim) { const t = state.interim; state.interim = ''; addLine(t); }
+  stopRec();
+  // 每次都建立「新的」辨識物件；重複使用舊物件在 Chrome 上有時會卡住不動
+  const r = new SR();
+  r.lang = state.dir === 'en2zh' ? 'en-US' : 'zh-TW';
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+
+  r.onstart = () => { if (rec !== r) return; recInfo.active = true; recInfo.pendingSince = 0; recInfo.lastStart = Date.now(); setRecStatus('聆聽中'); };
+
+  r.onresult = (e) => {
+    if (rec !== r) return;
+    recInfo.lastHeard = Date.now();
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      const t = res[0].transcript.trim();
+      if (res.isFinal) { if (t) addLine(t); }
+      else interim += t + ' ';
+    }
+    state.interim = interim.trim();
+    // 講者一直沒停頓 → 強制切句，避免字幕卡太久
+    if (state.interim.length > MAX_INTERIM_CHARS) { try { r.stop(); } catch (_) {} }
+    render();
+  };
+
+  r.onerror = (e) => {
+    if (rec !== r) return;
+    logRecEvent('辨識狀態：' + e.error);
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      recInfo.denied++;
+      // 偶爾一次被拒，多半是重新啟動太快；連續被拒才真的停下來
+      if (recInfo.denied >= 3) {
+        setRunning(false);
+        showMsg($('appMsg'), '麥克風被擋住了：請按網址列左邊的圖示，把「麥克風」改成允許，再按「開始翻譯」。', 'error');
+      }
+      return;
+    }
+    if (e.error === 'network') setRecStatus('網路不穩，重新連線中…');
+  };
+
+  // Chrome 每隔一段時間會自己停止 → 翻譯中就建立新的辨識物件接手
+  r.onend = () => {
+    if (rec !== r) return;
+    recInfo.active = false;
+    recInfo.pendingSince = 0;
+    recInfo.lastEnd = Date.now();
+    // 還沒定稿的半句不要丟掉，直接送去翻譯
+    if (state.interim) { const t = state.interim; state.interim = ''; addLine(t); }
+    if (state.running) {
+      setRecStatus('重新啟動辨識…');
+      setTimeout(() => { if (state.running && rec === r) startRec(); }, 300);
+    }
+  };
+
+  rec = r;
+  recInfo.active = false;
+  recInfo.pendingSince = Date.now();   // 等待啟動中（可能正在等使用者允許麥克風）
+  recInfo.lastEnd = Date.now();
+  try { r.start(); } catch (err) { logRecEvent('啟動失敗：' + err.message); }
+  return true;
+}
+
+function stopRec() {
+  if (!rec) return;
+  const old = rec;
+  rec = null;
+  old.onend = null; old.onresult = null; old.onerror = null; old.onstart = null;
+  try { old.abort(); } catch (_) {}
+  recInfo.active = false;
+}
+
+/* 看門狗：每 2 秒檢查一次，辨識意外停住就重新啟動 */
+const recInfo = { active: false, pendingSince: 0, lastStart: 0, lastEnd: 0, lastHeard: 0, lastLoud: 0, loudSince: 0, denied: 0, restarts: 0 };
+setInterval(() => {
+  if (!state.running) return;
+  const now = Date.now();
+  // 停了 3 秒還沒重啟；但如果正在等麥克風權限，最多等 15 秒，避免一直跳出詢問
+  const stuckStopped = !recInfo.active &&
+    (recInfo.pendingSince ? now - recInfo.pendingSince > 15000 : now - recInfo.lastEnd > 3000);
+  const tooLong = recInfo.active && now - recInfo.lastStart > 5 * 60 * 1000 &&    // 同一段辨識超過 5 分鐘
+                  now - recInfo.lastHeard > 1500 && !state.interim;              // 而且剛好沒人在講話
+  // 「聾了」：麥克風持續有聲音超過 5 秒，辨識卻 7 秒以上沒產生任何文字
+  const deaf = recInfo.active && recInfo.loudSince && now - recInfo.loudSince > 5000 &&
+               now - recInfo.lastLoud < 1500 &&
+               now - Math.max(recInfo.lastHeard, recInfo.lastStart) > 7000;
+  if (stuckStopped || tooLong || deaf) {
+    recInfo.restarts++;
+    recInfo.loudSince = 0;
+    logRecEvent(stuckStopped ? '看門狗：辨識停住，自動重新啟動' :
+                deaf ? '看門狗：有聲音但沒辨識出文字，自動重新啟動' : '看門狗：定期重新整理辨識');
+    startRec();
+  }
+  // 成功聽到聲音後，把「被拒」次數歸零
+  if (recInfo.lastHeard > recInfo.lastStart) recInfo.denied = 0;
+  const ago = recInfo.lastHeard ? Math.round((now - recInfo.lastHeard) / 1000) : null;
+  if (!recInfo.active && recInfo.pendingSince) setRecStatus('等待麥克風權限…（請按「允許」）');
+  if (recInfo.active) setRecStatus('聆聽中' + (ago != null ? '・上次聽到聲音 ' + ago + ' 秒前' : ''));
+}, 2000);
+
+/* 麥克風音量表：另外開一條音訊來量音量，用來判斷「有沒有人在講話」 */
+let micStream = null, micCtx = null, micTimer = null;
+async function startMicMeter() {
+  if (micStream) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = micCtx.createMediaStreamSource(micStream);
+    const an = micCtx.createAnalyser();
+    an.fftSize = 1024;
+    src.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    micTimer = setInterval(() => {
+      an.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const rms = Math.sqrt(sum / buf.length);
+      const pct = Math.min(100, Math.round(rms * 400));
+      const bar = $('micBar');
+      if (bar) bar.style.width = pct + '%';
+      const now = Date.now();
+      if (pct >= 8) {                       // 有人在講話的門檻
+        if (!recInfo.loudSince || now - recInfo.lastLoud > 1500) recInfo.loudSince = now;
+        recInfo.lastLoud = now;
+      }
+    }, 150);
+  } catch (err) {
+    logRecEvent('音量表無法啟動：' + err.message);
+  }
+}
+function stopMicMeter() {
+  clearInterval(micTimer); micTimer = null;
+  try { if (micStream) micStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+  try { if (micCtx) micCtx.close(); } catch (_) {}
+  micStream = null; micCtx = null;
+  const bar = $('micBar'); if (bar) bar.style.width = '0';
+}
+
+function setRecStatus(t) { const el = $('recStatus'); if (el) el.textContent = state.running ? '🎤 ' + t : ''; }
+
+function logRecEvent(t) {
+  const el = $('recLog');
+  if (!el) return;
+  const line = new Date().toLocaleTimeString('zh-TW', { hour12: false }) + '　' + t;
+  el.textContent = (line + '\n' + el.textContent).split('\n').slice(0, 30).join('\n');
+}
+
+async function setRunning(on) {
+  if (on) {
+    showMsg($('appMsg'), '');
+    state.running = true;
+    recInfo.denied = 0;
+    if (!startRec()) { state.running = false; }
+    else startMicMeter();
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+  } else {
+    state.running = false;
+    stopRec();
+    stopMicMeter();
+    state.interim = '';
+    setRecStatus('');
+    try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (_) {}
+  }
+  render();
+}
+
+/* ============================================================
+   翻譯
+   ============================================================ */
+function addLine(text) {
+  const prev = state.lines.length ? state.lines[state.lines.length - 1].src : '';
+  const line = {
+    seq: ++state.seq, src: text, dst: null, dir: state.dir, engine: '',
+    rt: null, time: new Date(), err: ''
+  };
+  state.lines.push(line);
+  render();
+  translateLine(line, prev);
+}
+
+async function translateLine(line, prev) {
+  const base = {
+    action: 'translate', eventId: state.cfg.eventId, pass: state.cfg.pass,
+    text: line.src, dir: line.dir, prev: prev, seq: line.seq
+  };
+  const t0 = performance.now();
+  let res = null;
+  try {
+    if (state.engine === 'gemma') {
+      res = await raceGemmaGoogle(base);
+    } else {
+      res = await post(Object.assign({ engine: 'google' }, base), REQUEST_TIMEOUT_MS);
+      if (!res.ok) throw new Error(res.error);
+    }
+    line.dst = res.text;
+    line.engine = res.engine;
+  } catch (err) {
+    line.dst = '（翻譯失敗）';
+    line.err = err.name === 'AbortError' ? '逾時' : err.message;
+    showMsg($('appMsg'), '翻譯失敗：' + line.err, 'error');
+  }
+  line.rt = Math.round(performance.now() - t0);
+  render();
+}
+
+/**
+ * Gemma 與 Google 賽跑：
+ *  先請 Gemma；超過 HEDGE_MS 還沒回來（或 Gemma 出錯），就同時請 Google，
+ *  誰先成功回來就用誰。兩個都失敗才算失敗。
+ */
+function raceGemmaGoogle(base) {
+  return new Promise((resolve, reject) => {
+    let done = false, fails = 0, googleStarted = false, lastErr = null;
+    const ok = (r) => { if (!done) { done = true; resolve(r); } };
+    const fail = (err) => {
+      if (done) return;
+      if (isAuthError(err)) { done = true; return reject(err); }
+      lastErr = err;
+      fails++;
+      if (fails >= 2) { done = true; return reject(lastErr); }
+      startGoogle();
+    };
+    const run = (payload) => post(payload, REQUEST_TIMEOUT_MS)
+      .then((r) => (r.ok ? ok(r) : fail(new Error(r.error))))
+      .catch(fail);
+    const startGoogle = () => {
+      if (googleStarted || done) return;
+      googleStarted = true;
+      run(Object.assign({ engine: 'google', fallback: true }, base));
+    };
+    run(Object.assign({ engine: 'gemma' }, base));
+    setTimeout(startGoogle, HEDGE_MS);
+  });
+}
+
+function isAuthError(err) {
+  return /通行碼|活動代碼|已結束/.test(err && err.message || '');
+}
+
+/* ============================================================
+   畫面輸出（操作台預覽、投影視窗、浮動字幕條）
+   ============================================================ */
+const SIZE_SCALE = { S: 0.8, M: 1, L: 1.25 };
+
+/** 投影要顯示的句子 */
+function visibleLines() {
+  return state.lines.filter((l) => l.seq > state.clearedSeq).slice(-SCREEN_LINES);
+}
+
+/** 產生字幕區塊 HTML（unit：預覽用 px，投影用 vw） */
+function captionHtml(mode) {
+  const vis = mode === 'pip' ? visibleLines().slice(-1) : visibleLines();
+  const k = SIZE_SCALE[state.size];
+  let html = '';
+  vis.forEach((l, i) => {
+    const latest = i === vis.length - 1;
+    const op = latest ? 1 : (i === vis.length - 2 ? 0.6 : 0.35);
+    const dst = l.dst == null ? '<span style="opacity:.5">翻譯中…</span>' : esc(l.dst);
+    const srcSize = mode === 'screen' ? (latest ? 2.1 : 1.7) * k + 'vw' : mode === 'pip' ? 3.2 * k + 'vw' : 14 * k + 'px';
+    const dstSize = mode === 'screen' ? (latest ? 4.2 : 2.9) * k + 'vw' : mode === 'pip' ? 6.2 * k + 'vw' : (latest ? 24 : 18) * k + 'px';
+    html += '<div style="opacity:' + op + ';margin-top:' + (mode === 'pip' ? 0 : 14) + 'px">' +
+      (state.showSrc ? '<div style="color:#9FB0BD;font-size:' + srcSize + ';line-height:1.35">' + esc(l.src) + '</div>' : '') +
+      '<div style="font-size:' + dstSize + ';font-weight:700;line-height:1.35">' + dst + '</div></div>';
+  });
+  if (state.interim && mode !== 'pip') {
+    const s = mode === 'screen' ? 1.9 * k + 'vw' : 14 * k + 'px';
+    html += '<div style="color:#6F8494;font-size:' + s + ';margin-top:12px">' + esc(state.interim) + ' <span style="color:#F2A541">▍</span></div>';
+  }
+  if (!html) html = '<div style="color:#6F8494;font-size:' + (mode === 'preview' ? '15px' : '2vw') + '">' +
+    (state.running ? '聆聽中…' : '等待開始') + '</div>';
+  return html;
+}
+
+const SCREEN_HTML = `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>ECHO 即時字幕｜投影</title>
+<style>
+html,body{margin:0;height:100%;background:#0E1A24;color:#F4F1EA;font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;overflow:hidden}
+.wrap{height:100%;display:flex;flex-direction:column;padding:3vh 5vw 4vh;box-sizing:border-box}
+.hdr{display:flex;justify-content:space-between;align-items:center;font-size:1.4vw;color:#9FB0BD}
+.live{display:flex;align-items:center;gap:.8vw;color:#F4F1EA;font-weight:700}
+.dot{width:1vw;height:1vw;border-radius:50%;background:#F2A541}
+#lines{flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:2vh}
+.ft{display:flex;justify-content:space-between;font-size:1.1vw;color:#6F8494}
+#fs{position:fixed;top:10px;right:10px;font-size:14px;padding:6px 12px;border-radius:6px;border:1px solid #3A4A56;background:#1C2830;color:#F4F1EA;cursor:pointer}
+:fullscreen #fs{display:none}
+</style></head><body>
+<button id="fs" onclick="document.documentElement.requestFullscreen()">全螢幕</button>
+<div class="wrap">
+  <div class="hdr"><div class="live"><span class="dot"></span>即時翻譯 LIVE <span id="dirLbl" style="font-weight:400;color:#9FB0BD"></span></div><div id="evLbl"></div></div>
+  <div id="lines"></div>
+  <div class="ft"><span>AI 即時翻譯，僅供參考</span><span>ECHO 即時字幕 by 洄佳整合行銷</span></div>
+</div></body></html>`;
+
+const PIP_HTML = `<style>
+html,body{margin:0;height:100%;background:rgba(14,26,36,.95);color:#F4F1EA;font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;overflow:hidden}
+#lines{height:100%;box-sizing:border-box;padding:2vh 3vw;display:flex;flex-direction:column;justify-content:center}
+</style><div id="lines"></div>`;
+
+function openScreen() {
+  if (screenWin && !screenWin.closed) { screenWin.focus(); return; }
+  screenWin = window.open('', 'echoCaptionScreen', 'width=1280,height=720');
+  if (!screenWin) return showMsg($('appMsg'), '投影視窗被瀏覽器擋住了，請允許這個網站開啟彈出式視窗。', 'error');
+  screenWin.document.open();
+  screenWin.document.write(SCREEN_HTML);
+  screenWin.document.close();
+  render();
+}
+
+async function openPip() {
+  if (!('documentPictureInPicture' in window)) {
+    return showMsg($('appMsg'), '這個瀏覽器不支援浮動字幕條，請更新電腦版 Chrome。', 'error');
+  }
+  try {
+    pipWin = await documentPictureInPicture.requestWindow({ width: 960, height: 170 });
+    pipWin.document.body.innerHTML = PIP_HTML;
+    pipWin.addEventListener('pagehide', () => { pipWin = null; });
+    render();
+  } catch (err) {
+    showMsg($('appMsg'), '無法開啟浮動字幕條：' + err.message, 'error');
+  }
+}
+
+function render() {
+  // 狀態標籤與按鈕
+  const pill = $('statusPill');
+  pill.className = 'pill ' + (state.running ? 'on' : 'off');
+  pill.textContent = state.running ? '● 翻譯中' : '❚❚ 已暫停';
+  const rb = $('runBtn');
+  rb.textContent = state.running ? '暫停（主持人講話、休息時按）' : '開始翻譯';
+  rb.className = state.running ? 'stop' : '';
+  document.querySelectorAll('[data-dir]').forEach((b) => b.classList.toggle('on', b.dataset.dir === state.dir));
+  document.querySelectorAll('[data-engine]').forEach((b) => b.classList.toggle('on', b.dataset.engine === state.engine));
+  document.querySelectorAll('[data-size]').forEach((b) => b.classList.toggle('on', b.dataset.size === state.size));
+
+  // 預覽
+  $('preview').innerHTML = captionHtml('preview');
+
+  // 投影視窗
+  if (screenWin && screenWin.closed) screenWin = null;
+  if (screenWin) {
+    const d = screenWin.document;
+    const box = d.getElementById('lines');
+    if (box) box.innerHTML = captionHtml('screen');
+    const ev = d.getElementById('evLbl');
+    if (ev && state.ev) ev.textContent = (state.ev.org || '') + '｜' + (state.ev.name || '');
+    const dl = d.getElementById('dirLbl');
+    if (dl) dl.textContent = state.dir === 'en2zh' ? '英文 → 中文' : '中文 → 英文';
+  }
+
+  // 浮動字幕條
+  if (pipWin) {
+    const box = pipWin.document.getElementById('lines');
+    if (box) box.innerHTML = captionHtml('pip');
+  }
+
+  // 統計
+  const done = state.lines.filter((l) => l.rt != null && !l.err);
+  $('stCount').textContent = done.length;
+  const recent = done.slice(-20);
+  $('stAvg').textContent = recent.length ? (recent.reduce((a, l) => a + l.rt, 0) / recent.length / 1000).toFixed(1) + ' 秒' : '—';
+  const last = done[done.length - 1];
+  $('stEngine').textContent = last ? last.engine : '—';
+
+  // 逐字稿
+  $('logBody').innerHTML = state.lines.slice(-200).reverse().map((l) =>
+    '<tr><td class="t">' + l.time.toLocaleTimeString('zh-TW', { hour12: false }) + '</td>' +
+    '<td><div class="s">' + esc(l.src) + '</div><div>' + (l.dst == null ? '…' : esc(l.dst)) + '</div></td>' +
+    '<td class="e">' + esc(l.engine || l.err || '') + (l.rt != null ? '<br>' + (l.rt / 1000).toFixed(1) + ' 秒' : '') + '</td></tr>'
+  ).join('');
+}
+
+/* ============================================================
+   下載逐字稿 CSV
+   ============================================================ */
+function downloadCsv() {
+  const q = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  const rows = [['時間', '方向', '原文', '譯文', '翻譯引擎', '等待秒數']].concat(
+    state.lines.map((l) => [l.time.toLocaleString('zh-TW', { hour12: false }), l.dir === 'en2zh' ? '英→中' : '中→英',
+      l.src, l.dst, l.engine || l.err, l.rt != null ? (l.rt / 1000).toFixed(1) : ''])
+  );
+  const csv = '﻿' + rows.map((r) => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'ECHO逐字稿_' + state.cfg.eventId + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ============================================================
+   按鈕綁定
+   ============================================================ */
+$('loginBtn').addEventListener('click', doLogin);
+$('cfgPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+$('logoutLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  setRunning(false);
+  $('app').style.display = 'none';
+  $('login').style.display = 'block';
+});
+$('runBtn').addEventListener('click', () => setRunning(!state.running));
+document.querySelectorAll('[data-dir]').forEach((b) => b.addEventListener('click', () => {
+  state.dir = b.dataset.dir;
+  if (state.running) startRec();   // 換語言要重新啟動辨識
+  render();
+}));
+document.querySelectorAll('[data-engine]').forEach((b) => b.addEventListener('click', () => { state.engine = b.dataset.engine; render(); }));
+document.querySelectorAll('[data-size]').forEach((b) => b.addEventListener('click', () => { state.size = b.dataset.size; render(); }));
+$('showSrc').addEventListener('change', (e) => { state.showSrc = e.target.checked; render(); });
+$('clearBtn').addEventListener('click', () => { state.clearedSeq = state.seq; state.interim = ''; render(); });
+$('openScreenBtn').addEventListener('click', openScreen);
+$('openPipBtn').addEventListener('click', openPip);
+$('manualBtn').addEventListener('click', () => {
+  const t = $('manualText').value.trim();
+  if (t) { addLine(t); $('manualText').value = ''; }
+});
+$('manualText').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('manualBtn').click(); });
+window.addEventListener('beforeunload', (e) => { if (state.running) { e.preventDefault(); e.returnValue = ''; } });
+
+loadCfg();
+</script>
+</body>
+</html>
